@@ -191,7 +191,40 @@
             color: var(--warning);
             border: 1px solid var(--warning);
         }
+        .btn-solve {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #1A1A2E;
+            font-weight: 700;
+        }
+        .btn-skip {
+            background: var(--surface2);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
         .btn:active { transform: scale(0.95); opacity: 0.8; }
+
+        /* ========== COIN DISPLAY ========== */
+        .coin-display {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(135deg, #FFD70033, #FFA50022);
+            border: 1px solid #FFD70055;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gold);
+        }
+        .coin-icon { font-size: 14px; }
+        .coin-anim {
+            animation: coinBounce 0.4s ease;
+        }
+        @keyframes coinBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
 
         /* ========== MODAL ========== */
         .modal-overlay {
@@ -309,8 +342,12 @@
                 <span class="header-title">MAZE ESCAPE</span>
                 <span class="level-badge" id="levelBadge">Lv.1</span>
             </div>
-            <div style="font-size:13px; color:var(--text-dim)">
-                <span id="gridSizeLabel">5x5</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="gridSizeLabel" style="font-size:13px; color:var(--text-dim)">5x5</span>
+                <div class="coin-display">
+                    <span class="coin-icon">&#x1FA99;</span>
+                    <span id="coinCount">5</span>
+                </div>
             </div>
         </div>
 
@@ -350,6 +387,8 @@
         <div class="bottom-bar">
             <button class="btn btn-reset" id="btnReset">Reset</button>
             <button class="btn btn-undo" id="btnUndo">Undo</button>
+            <button class="btn btn-solve" id="btnSolve">&#x1FA99;1 Answer</button>
+            <button class="btn btn-skip" id="btnSkip">Skip &#9654;</button>
             <button class="btn btn-levels" id="btnLevels">Levels</button>
         </div>
     </div>
@@ -403,6 +442,115 @@ const CELL_WALL = 1;
 const CELL_EMPTY = 0;
 const CELL_EXIT = 2;
 
+// ============================================================
+//  SOUND EFFECTS — Web Audio API (no external files)
+// ============================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playSlide() {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(300, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(500, audioCtx.currentTime + 0.08);
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.12);
+}
+
+function playBump() {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(120, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(60, audioCtx.currentTime + 0.06);
+    g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.08);
+}
+
+function playWin() {
+    ensureAudio();
+    const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.12);
+        g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + i * 0.12 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.3);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(audioCtx.currentTime + i * 0.12);
+        o.stop(audioCtx.currentTime + i * 0.12 + 0.3);
+    });
+}
+
+function playFail() {
+    ensureAudio();
+    const notes = [400, 350, 300, 200];
+    notes.forEach((freq, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.1);
+        g.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + i * 0.1 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.1 + 0.2);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(audioCtx.currentTime + i * 0.1);
+        o.stop(audioCtx.currentTime + i * 0.1 + 0.2);
+    });
+}
+
+function playUndo() {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(500, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.12);
+}
+
+function playCoin() {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1200, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(1800, audioCtx.currentTime + 0.08);
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.15);
+}
+
+function playBtn() {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 600;
+    g.gain.setValueAtTime(0.06, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.05);
+}
+
 // Direction vectors
 const DIR = {
     up:    { dx: 0, dy: -1 },
@@ -412,161 +560,165 @@ const DIR = {
 };
 
 // ============================================================
-//  LEVEL DEFINITIONS (20 levels, hand-tuned)
+//  LEVEL GENERATION — procedural + BFS verified
 // ============================================================
-const LEVELS = [];
 
-// Level generation: We use seeded procedural generation
-// Each level defines: gridSize, start, exit, walls, optimalMoves, allowedMoves
-function seedRandom(seed) {
-    let s = seed;
+// Seeded PRNG for reproducible levels
+function mulberry32(seed) {
     return function() {
-        s = (s * 1103515245 + 12345) & 0x7fffffff;
-        return s / 0x7fffffff;
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
 }
 
-function generateMaze(level) {
-    // Pre-designed levels for quality control
-    const designs = [
-        // Level 1: 5x5, optimal 3
-        {
-            size: 5, start: [0, 2], exit: [4, 2], optimal: 3, allowed: 10,
-            walls: [[2,0],[2,1],[2,3],[2,4],[1,2]]
-        },
-        // Level 2: 5x5, optimal 3
-        {
-            size: 5, start: [0, 4], exit: [4, 0], optimal: 3, allowed: 10,
-            walls: [[1,1],[3,1],[1,3],[3,3],[2,2]]
-        },
-        // Level 3: 5x5, optimal 4
-        {
-            size: 5, start: [0, 0], exit: [4, 4], optimal: 4, allowed: 12,
-            walls: [[2,0],[2,1],[0,2],[1,2],[3,3],[4,3],[3,4]]
-        },
-        // Level 4: 6x6, optimal 4
-        {
-            size: 6, start: [0, 0], exit: [5, 5], optimal: 4, allowed: 12,
-            walls: [[2,0],[2,1],[0,3],[1,3],[4,2],[4,3],[3,5],[2,4]]
-        },
-        // Level 5: 6x6, optimal 5
-        {
-            size: 6, start: [0, 5], exit: [5, 0], optimal: 5, allowed: 15,
-            walls: [[1,1],[1,4],[2,2],[3,3],[4,1],[4,4],[0,3],[5,2],[3,0],[2,5]]
-        },
-        // Level 6: 7x7, optimal 5
-        {
-            size: 7, start: [0, 3], exit: [6, 3], optimal: 5, allowed: 15,
-            walls: [[2,1],[2,5],[4,2],[4,4],[3,3],[1,0],[5,6],[1,3],[5,3],[3,1],[3,5]]
-        },
-        // Level 7: 7x7, optimal 6
-        {
-            size: 7, start: [0, 0], exit: [6, 6], optimal: 6, allowed: 18,
-            walls: [[2,0],[0,2],[3,2],[2,3],[4,4],[6,4],[4,6],[5,1],[1,5],[3,5],[5,3]]
-        },
-        // Level 8: 7x7, optimal 7
-        {
-            size: 7, start: [3, 0], exit: [3, 6], optimal: 7, allowed: 20,
-            walls: [[1,1],[5,1],[1,5],[5,5],[3,2],[3,4],[2,3],[4,3],[0,3],[6,3],[1,3],[5,3]]
-        },
-        // Level 9: 8x8, optimal 7
-        {
-            size: 8, start: [0, 0], exit: [7, 7], optimal: 7, allowed: 20,
-            walls: [[2,0],[0,2],[3,3],[4,2],[2,4],[5,5],[7,5],[5,7],[6,1],[1,6],[4,4],[3,6],[6,3]]
-        },
-        // Level 10: 8x8, optimal 8
-        {
-            size: 8, start: [0, 7], exit: [7, 0], optimal: 8, allowed: 24,
-            walls: [[1,1],[2,3],[3,1],[1,5],[4,4],[5,2],[6,5],[5,6],[3,6],[6,1],[2,6],[0,3],[7,4],[4,7],[3,3]]
-        },
-        // Level 11: 9x9, optimal 9
-        {
-            size: 9, start: [0, 4], exit: [8, 4], optimal: 9, allowed: 25,
-            walls: [[2,1],[2,7],[6,1],[6,7],[4,3],[4,5],[1,4],[7,4],[3,2],[5,6],[3,6],[5,2],[4,0],[4,8],[0,2],[8,6]]
-        },
-        // Level 12: 9x9, optimal 10
-        {
-            size: 9, start: [0, 0], exit: [8, 8], optimal: 10, allowed: 28,
-            walls: [[2,0],[0,2],[3,3],[5,2],[2,5],[6,4],[4,6],[7,7],[1,4],[4,1],[7,3],[3,7],[5,5],[8,5],[5,8],[6,1],[1,7]]
-        },
-        // Level 13: 10x10, optimal 11
-        {
-            size: 10, start: [0, 9], exit: [9, 0], optimal: 11, allowed: 30,
-            walls: [[2,1],[1,3],[3,2],[4,5],[5,3],[6,7],[7,5],[8,2],[3,8],[5,6],[7,1],[2,6],[8,8],[1,7],[6,3],[4,0],[9,5],[0,4],[5,9]]
-        },
-        // Level 14: 10x10, optimal 12
-        {
-            size: 10, start: [0, 0], exit: [9, 9], optimal: 12, allowed: 32,
-            walls: [[2,0],[0,3],[3,2],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[2,8],[8,2],[6,6],[4,8],[8,4],[1,7],[7,1],[9,5],[5,9]]
-        },
-        // Level 15: 11x11, optimal 13
-        {
-            size: 11, start: [5, 0], exit: [5, 10], optimal: 13, allowed: 35,
-            walls: [[2,1],[8,1],[2,9],[8,9],[4,3],[6,3],[4,7],[6,7],[5,5],[3,5],[7,5],[1,3],[9,7],[5,2],[5,8],[0,5],[10,5],[3,1],[7,9],[2,4],[8,6]]
-        },
-        // Level 16: 11x11, optimal 14
-        {
-            size: 11, start: [0, 0], exit: [10, 10], optimal: 14, allowed: 38,
-            walls: [[2,0],[0,2],[3,3],[5,2],[2,5],[6,4],[4,6],[8,3],[3,8],[7,7],[9,9],[1,4],[4,1],[7,2],[2,7],[9,5],[5,9],[6,6],[10,7],[7,10],[8,1],[1,8]]
-        },
-        // Level 17: 12x12, optimal 15
-        {
-            size: 12, start: [0, 11], exit: [11, 0], optimal: 15, allowed: 40,
-            walls: [[2,1],[1,3],[4,2],[3,5],[6,3],[5,6],[8,4],[4,8],[7,7],[9,2],[2,9],[10,5],[5,10],[3,7],[7,3],[8,9],[9,8],[1,6],[6,1],[10,10],[11,5],[0,6],[6,11]]
-        },
-        // Level 18: 12x12, optimal 17
-        {
-            size: 12, start: [0, 0], exit: [11, 11], optimal: 17, allowed: 42,
-            walls: [[2,0],[0,2],[3,3],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[9,2],[2,9],[10,4],[4,10],[6,6],[11,7],[7,11],[8,1],[1,8],[9,9],[10,6],[6,10],[3,10],[10,3]]
-        },
-        // Level 19: 13x13, optimal 18
-        {
-            size: 13, start: [6, 0], exit: [6, 12], optimal: 18, allowed: 44,
-            walls: [[3,1],[9,1],[3,11],[9,11],[5,3],[7,3],[5,9],[7,9],[6,6],[4,5],[8,5],[4,7],[8,7],[2,3],[10,9],[6,2],[6,10],[0,6],[12,6],[2,6],[10,6],[1,4],[11,8],[5,5],[7,7],[3,8],[9,4]]
-        },
-        // Level 20: 13x13, optimal 20
-        {
-            size: 13, start: [0, 0], exit: [12, 12], optimal: 20, allowed: 48,
-            walls: [[2,0],[0,2],[3,3],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[9,2],[2,9],[10,4],[4,10],[6,6],[11,7],[7,11],[8,1],[1,8],[9,9],[10,6],[6,10],[12,9],[9,12],[11,11],[3,10],[10,3],[0,7],[7,0]]
-        }
-    ];
+// Level specs: [gridSize, targetOptimal, allowedMoves, seed]
+const LEVEL_SPECS = [
+    [5,  2,  8,  100], // Lv1
+    [5,  3, 10,  200], // Lv2
+    [5,  3, 10,  300], // Lv3
+    [6,  3, 10,  400], // Lv4
+    [6,  4, 12,  500], // Lv5
+    [7,  4, 12,  600], // Lv6
+    [7,  5, 15,  700], // Lv7
+    [7,  5, 15,  800], // Lv8
+    [8,  5, 15,  900], // Lv9
+    [8,  6, 18, 1000], // Lv10
+    [9,  6, 18, 1100], // Lv11
+    [9,  7, 20, 1200], // Lv12
+    [10, 7, 20, 1300], // Lv13
+    [10, 8, 24, 1400], // Lv14
+    [11, 8, 24, 1500], // Lv15
+    [11, 9, 28, 1600], // Lv16
+    [12, 9, 28, 1700], // Lv17
+    [12,10, 30, 1800], // Lv18
+    [13,10, 30, 1900], // Lv19
+    [13,12, 35, 2000], // Lv20
+];
 
-    return designs[level];
-}
-
-// Verify optimal solution with BFS
-function bfsSolve(grid, size, start, exit) {
-    const key = (x, y) => `${x},${y}`;
-    const queue = [{ x: start[0], y: start[1], moves: 0 }];
-    const visited = new Set();
-    visited.add(key(start[0], start[1]));
-
-    while (queue.length > 0) {
-        const { x, y, moves } = queue.shift();
-
-        for (const dir of Object.values(DIR)) {
-            let nx = x, ny = y;
-            // Slide until hitting wall or boundary
+// BFS for ice-sliding: returns optimal moves or -1
+function bfsSolveGrid(g, sz, sx, sy, ex, ey) {
+    const key = (x,y) => x * sz + y;
+    const q = [{x:sx, y:sy, m:0}];
+    const vis = new Set(); vis.add(key(sx,sy));
+    const dirs = [{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+    let head = 0;
+    while (head < q.length) {
+        const {x,y,m} = q[head++];
+        for (const d of dirs) {
+            let nx=x, ny=y;
             while (true) {
-                const tx = nx + dir.dx;
-                const ty = ny + dir.dy;
-                if (tx < 0 || tx >= size || ty < 0 || ty >= size) break;
-                if (grid[ty][tx] === CELL_WALL) break;
-                nx = tx;
-                ny = ty;
-                // Check if we reached exit during slide
-                if (nx === exit[0] && ny === exit[1]) {
-                    return moves + 1;
-                }
+                const tx=nx+d.dx, ty=ny+d.dy;
+                if (tx<0||tx>=sz||ty<0||ty>=sz) break;
+                if (g[ty][tx]===1) break;
+                nx=tx; ny=ty;
+                if (nx===ex && ny===ey) return m+1;
             }
-
-            if (nx === x && ny === y) continue; // didn't move
-            if (visited.has(key(nx, ny))) continue;
-            visited.add(key(nx, ny));
-            queue.push({ x: nx, y: ny, moves: moves + 1 });
+            if (nx===x && ny===y) continue;
+            if (vis.has(key(nx,ny))) continue;
+            vis.add(key(nx,ny));
+            q.push({x:nx,y:ny,m:m+1});
         }
     }
-    return -1; // no solution
+    return -1;
+}
+
+// Generate a level: place walls randomly, keep only if BFS gives target range
+function generateMaze(levelIndex) {
+    const [size, targetOpt, allowed, baseSeed] = LEVEL_SPECS[levelIndex];
+
+    // Try multiple seeds until we find a good puzzle
+    for (let attempt = 0; attempt < 500; attempt++) {
+        const rng = mulberry32(baseSeed + attempt * 7);
+
+        // Pick start and exit on opposite edges
+        let sx, sy, ex, ey;
+        const edge = Math.floor(rng() * 4);
+        if (edge === 0) { // start left, exit right
+            sx=0; sy=Math.floor(rng()*size); ex=size-1; ey=Math.floor(rng()*size);
+        } else if (edge === 1) { // start top, exit bottom
+            sx=Math.floor(rng()*size); sy=0; ex=Math.floor(rng()*size); ey=size-1;
+        } else if (edge === 2) { // start right, exit left
+            sx=size-1; sy=Math.floor(rng()*size); ex=0; ey=Math.floor(rng()*size);
+        } else { // start bottom, exit top
+            sx=Math.floor(rng()*size); sy=size-1; ex=Math.floor(rng()*size); ey=0;
+        }
+
+        // Build empty grid
+        const g = [];
+        for (let y=0;y<size;y++) { g[y]=[]; for(let x=0;x<size;x++) g[y][x]=0; }
+
+        // Add walls one at a time
+        const wallCount = Math.floor(size * size * (0.15 + rng() * 0.15));
+        const walls = [];
+
+        for (let w = 0; w < wallCount; w++) {
+            const wx = Math.floor(rng() * size);
+            const wy = Math.floor(rng() * size);
+            if (wx===sx && wy===sy) continue;
+            if (wx===ex && wy===ey) continue;
+            if (g[wy][wx]===1) continue;
+            g[wy][wx] = 1;
+            // Check still solvable
+            if (bfsSolveGrid(g,size,sx,sy,ex,ey) < 0) {
+                g[wy][wx] = 0; // revert
+            } else {
+                walls.push([wx, wy]);
+            }
+        }
+
+        const opt = bfsSolveGrid(g,size,sx,sy,ex,ey);
+        if (opt >= targetOpt && opt <= targetOpt + 3) {
+            return { size, start:[sx,sy], exit:[ex,ey], walls, optimal:opt, allowed };
+        }
+    }
+
+    // Fallback: trivial solvable level
+    return {
+        size, start:[0,0], exit:[size-1,size-1],
+        walls:[], optimal:2, allowed:10
+    };
+}
+
+// Cache generated levels so they don't regenerate each play
+const _levelCache = {};
+function getLevel(idx) {
+    if (!_levelCache[idx]) _levelCache[idx] = generateMaze(idx);
+    return _levelCache[idx];
+}
+
+
+// ============================================================
+//  BFS PATH FINDER — returns full path as direction list
+// ============================================================
+function bfsSolvePath(g, sz, sx, sy, ex, ey) {
+    const key = (x,y) => x * sz + y;
+    const dirs = [
+        {dx:0,dy:-1,name:'up'},{dx:0,dy:1,name:'down'},
+        {dx:-1,dy:0,name:'left'},{dx:1,dy:0,name:'right'}
+    ];
+    const q = [{x:sx, y:sy, path:[]}];
+    const vis = new Set(); vis.add(key(sx,sy));
+    let head = 0;
+    while (head < q.length) {
+        const {x,y,path} = q[head++];
+        for (const d of dirs) {
+            let nx=x, ny=y;
+            while (true) {
+                const tx=nx+d.dx, ty=ny+d.dy;
+                if (tx<0||tx>=sz||ty<0||ty>=sz) break;
+                if (g[ty][tx]===1) break;
+                nx=tx; ny=ty;
+                if (nx===ex && ny===ey) return [...path, {dir:d.name, from:{x,y}, to:{x:nx,y:ny}}];
+            }
+            if (nx===x && ny===y) continue;
+            if (vis.has(key(nx,ny))) continue;
+            vis.add(key(nx,ny));
+            q.push({x:nx,y:ny,path:[...path, {dir:d.name, from:{x,y}, to:{x:nx,y:ny}}]});
+        }
+    }
+    return null;
 }
 
 // ============================================================
@@ -585,19 +737,32 @@ let moveHistory = [];
 let isAnimating = false;
 let levelStars = {}; // level -> stars (1-3)
 let unlockedLevel = 0;
+let coins = 5;
+let showingSolution = false;
+let solutionPath = null;
 
 // Load progress
 try {
     const saved = JSON.parse(localStorage.getItem('luna-maze-progress') || '{}');
     levelStars = saved.stars || {};
     unlockedLevel = saved.unlocked || 0;
+    coins = saved.coins ?? 5;
 } catch(e) {}
 
 function saveProgress() {
     localStorage.setItem('luna-maze-progress', JSON.stringify({
         stars: levelStars,
-        unlocked: unlockedLevel
+        unlocked: unlockedLevel,
+        coins: coins
     }));
+}
+
+function updateCoinUI() {
+    const el = document.getElementById('coinCount');
+    el.textContent = coins;
+    el.classList.remove('coin-anim');
+    void el.offsetWidth;
+    el.classList.add('coin-anim');
 }
 
 // ============================================================
@@ -639,13 +804,25 @@ function drawMaze() {
             const py = y * cellSize;
 
             if (grid[y][x] === CELL_WALL) {
-                // Wall
-                ctx.fillStyle = '#2D2D50';
+                // Wall - brick style, clearly distinct
+                ctx.fillStyle = '#4A3B6B';
                 ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-                // Wall pattern
-                ctx.strokeStyle = '#3A3A60';
+                // Inner highlight
+                ctx.fillStyle = '#5B4A7F';
+                ctx.fillRect(px + 3, py + 3, cellSize - 6, cellSize - 6);
+                // Cross pattern
+                ctx.strokeStyle = '#6B5A90';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(px + 4, py + 4);
+                ctx.lineTo(px + cellSize - 4, py + cellSize - 4);
+                ctx.moveTo(px + cellSize - 4, py + 4);
+                ctx.lineTo(px + 4, py + cellSize - 4);
+                ctx.stroke();
+                // Border
+                ctx.strokeStyle = '#7B6AA0';
                 ctx.lineWidth = 1;
-                ctx.strokeRect(px + 3, py + 3, cellSize - 6, cellSize - 6);
+                ctx.strokeRect(px + 1.5, py + 1.5, cellSize - 3, cellSize - 3);
             } else {
                 // Floor
                 ctx.fillStyle = (x + y) % 2 === 0 ? '#1E1E36' : '#1A1A30';
@@ -731,6 +908,53 @@ function drawMaze() {
         ctx.arc(last.x * cellSize + cellSize/2, last.y * cellSize + cellSize/2, pr * 0.6, 0, Math.PI*2);
         ctx.fill();
     }
+
+    // Solution path overlay
+    if (showingSolution && solutionPath) {
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+
+        for (let i = 0; i < solutionPath.length; i++) {
+            const step = solutionPath[i];
+            const fx = step.from.x * cellSize + cellSize/2;
+            const fy = step.from.y * cellSize + cellSize/2;
+            const tx = step.to.x * cellSize + cellSize/2;
+            const ty = step.to.y * cellSize + cellSize/2;
+
+            // Line
+            const alpha = 0.5 + 0.3 * Math.sin(Date.now() / 300 + i);
+            ctx.strokeStyle = `rgba(0, 206, 201, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx, ty);
+            ctx.stroke();
+
+            // Step number
+            const mx = (fx + tx) / 2;
+            const my = (fy + ty) / 2;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.beginPath();
+            ctx.arc(mx, my, cellSize * 0.22, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#00CEC9';
+            ctx.font = `bold ${cellSize * 0.28}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i + 1, mx, my);
+
+            // Arrow head at destination
+            const angle = Math.atan2(ty - fy, tx - fx);
+            const aSize = cellSize * 0.18;
+            ctx.fillStyle = `rgba(0, 206, 201, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx - aSize * Math.cos(angle - 0.5), ty - aSize * Math.sin(angle - 0.5));
+            ctx.lineTo(tx - aSize * Math.cos(angle + 0.5), ty - aSize * Math.sin(angle + 0.5));
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.setLineDash([]);
+    }
 }
 
 function animateLoop() {
@@ -743,7 +967,7 @@ function animateLoop() {
 // ============================================================
 function loadLevel(levelIndex) {
     currentLevel = levelIndex;
-    const design = generateMaze(levelIndex);
+    const design = getLevel(levelIndex);
     gridSize = design.size;
     optimalMoves = design.optimal;
     allowedMoves = design.allowed;
@@ -779,16 +1003,13 @@ function loadLevel(levelIndex) {
     moveCount = 0;
     moveHistory = [];
     isAnimating = false;
-
-    // Verify solution exists
-    const bfsResult = bfsSolve(grid, gridSize, design.start, design.exit);
-    if (bfsResult > 0 && bfsResult < optimalMoves) {
-        optimalMoves = bfsResult; // Use actual BFS result if shorter
-    }
+    showingSolution = false;
+    solutionPath = null;
 
     // UI
     document.getElementById('levelBadge').textContent = `Lv.${levelIndex + 1}`;
     document.getElementById('gridSizeLabel').textContent = `${gridSize}x${gridSize}`;
+    document.getElementById('coinCount').textContent = coins;
     updateUI();
     resizeCanvas();
 }
@@ -828,8 +1049,9 @@ function slide(dirKey) {
         }
     }
 
-    if (!moved) return;
+    if (!moved) { playBump(); return; }
 
+    playSlide();
     // Save history
     moveHistory.push({ x: playerX, y: playerY });
     moveCount++;
@@ -858,8 +1080,10 @@ function slide(dirKey) {
             updateUI();
 
             if (reachedExit) {
+                playWin();
                 onWin();
             } else if (moveCount >= allowedMoves) {
+                playFail();
                 onFail();
             }
         }
@@ -878,6 +1102,7 @@ function slide(dirKey) {
 
 function undo() {
     if (isAnimating || moveHistory.length === 0) return;
+    playUndo();
     const prev = moveHistory.pop();
     playerX = prev.x;
     playerY = prev.y;
@@ -896,11 +1121,16 @@ function onWin() {
     if (moveCount <= optimalMoves) stars = 3;
     else if (moveCount <= optimalMoves * 1.5) stars = 2;
 
-    // Save
+    // Save + coin reward
     const prevStars = levelStars[currentLevel] || 0;
-    if (stars > prevStars) levelStars[currentLevel] = stars;
+    if (stars > prevStars) {
+        coins += stars;
+        levelStars[currentLevel] = stars;
+        setTimeout(playCoin, 400);
+    }
     if (currentLevel >= unlockedLevel) unlockedLevel = currentLevel + 1;
     saveProgress();
+    updateCoinUI();
 
     // Show modal
     document.getElementById('winStars').textContent =
@@ -1019,9 +1249,47 @@ canvas.addEventListener('touchend', (e) => {
 }, { passive: false });
 
 // Buttons
-document.getElementById('btnReset').addEventListener('click', () => loadLevel(currentLevel));
+document.getElementById('btnReset').addEventListener('click', () => { playBtn(); loadLevel(currentLevel); });
 document.getElementById('btnUndo').addEventListener('click', undo);
-document.getElementById('btnLevels').addEventListener('click', showLevelSelect);
+document.getElementById('btnLevels').addEventListener('click', () => { playBtn(); showLevelSelect(); });
+
+// Show Solution (1 coin)
+document.getElementById('btnSolve').addEventListener('click', () => {
+    if (showingSolution) {
+        showingSolution = false;
+        solutionPath = null;
+        return;
+    }
+    if (coins < 1) {
+        alert('Not enough coins!');
+        return;
+    }
+    // Build current grid for BFS (without EXIT marker interference)
+    const g = [];
+    for (let y=0;y<gridSize;y++) { g[y]=[]; for(let x=0;x<gridSize;x++) g[y][x] = grid[y][x]===CELL_WALL?1:0; }
+    const path = bfsSolvePath(g, gridSize, playerX, playerY, exitX, exitY);
+    if (path && path.length > 0) {
+        coins--;
+        saveProgress();
+        updateCoinUI();
+        playCoin();
+        solutionPath = path;
+        showingSolution = true;
+    } else {
+        alert('No path found! Try resetting.');
+    }
+});
+
+// Skip level
+document.getElementById('btnSkip').addEventListener('click', () => {
+    if (currentLevel >= unlockedLevel) unlockedLevel = currentLevel + 1;
+    saveProgress();
+    if (currentLevel < 19) {
+        loadLevel(currentLevel + 1);
+    } else {
+        alert('Last level!');
+    }
+});
 
 // Modal buttons
 document.getElementById('winNext').addEventListener('click', () => {
