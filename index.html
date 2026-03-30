@@ -424,6 +424,30 @@
         </div>
     </div>
 
+    <!-- Tutorial Modal -->
+    <div class="modal-overlay show" id="tutModal">
+        <div class="modal">
+            <div style="font-size:48px;margin-bottom:8px">🧊</div>
+            <h2 style="background:linear-gradient(135deg,var(--primary-light),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAZE ESCAPE</h2>
+            <p style="margin:14px 0 6px;color:var(--text);font-size:15px;font-weight:600">빙판 미로를 탈출하라!</p>
+            <div style="background:var(--surface2);border-radius:12px;padding:14px;margin:12px 0;text-align:left">
+                <div style="margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:22px">⬆️</span>
+                    <div><b style="color:var(--accent)">방향키를 누르면</b><br><span style="color:var(--text-dim);font-size:13px">벽에 부딪힐 때까지 쭉 미끄러져요!</span></div>
+                </div>
+                <div style="margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:22px">🟢</span>
+                    <div><b style="color:var(--accent)">EXIT 칸에 도달</b>하면 클리어!<br><span style="color:var(--text-dim);font-size:13px">허용 횟수 안에 탈출해야 해요</span></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:22px">⭐</span>
+                    <div><b style="color:var(--accent)">최소 횟수</b>로 탈출하면 별 3개!<br><span style="color:var(--text-dim);font-size:13px">Undo·Answer(1코인)·Skip 사용 가능</span></div>
+                </div>
+            </div>
+            <button id="tutStart" style="width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:700;background:var(--primary);color:white;cursor:pointer">시작하기!</button>
+        </div>
+    </div>
+
     <!-- Level Select Modal -->
     <div class="modal-overlay" id="levelModal">
         <div class="modal">
@@ -1327,6 +1351,14 @@ window.addEventListener('resize', resizeCanvas);
 // ============================================================
 //  INIT
 // ============================================================
+document.getElementById('tutStart').addEventListener('click', () => {
+    document.getElementById('tutModal').classList.remove('show');
+});
+if (localStorage.getItem('luna-maze-seen')) {
+    document.getElementById('tutModal').classList.remove('show');
+}
+localStorage.setItem('luna-maze-seen', '1');
+
 loadLevel(unlockedLevel < 20 ? unlockedLevel : 0);
 animateLoop();
 
