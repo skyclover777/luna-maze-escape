@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Luna Maze Escape - 미로 탈출</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #6C5CE7;
+            --primary-light: #A29BFE;
+            --accent: #00CEC9;
+            --danger: #FF6B6B;
+            --warning: #FDCB6E;
+            --success: #00B894;
+            --bg: #0F0F1A;
+            --surface: #1A1A2E;
+            --surface2: #25253D;
+            --text: #E8E8F0;
+            --text-dim: #8888AA;
+            --gold: #FFD700;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            height: 100dvh;
+            padding: 8px;
+        }
+
+        /* ========== HEADER ========== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 500px;
+            padding: 8px 12px;
+            background: var(--surface);
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+        .header-left { display: flex; align-items: center; gap: 8px; }
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-light), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .level-badge {
+            background: var(--primary);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ========== INFO BAR ========== */
+        .info-bar {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 8px;
+        }
+        .info-card {
+            flex: 1;
+            background: var(--surface);
+            border-radius: 10px;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        .info-label {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .info-value {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .info-value.moves { color: var(--accent); }
+        .info-value.optimal { color: var(--gold); }
+        .info-value.remaining { color: var(--warning); }
+        .info-value.danger { color: var(--danger); }
+
+        /* ========== MAZE ========== */
+        .maze-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 500px;
+            min-height: 0;
+        }
+
+        canvas#mazeCanvas {
+            border-radius: 12px;
+            background: var(--surface);
+        }
+
+        /* ========== CONTROLS ========== */
+        .controls {
+            width: 100%;
+            max-width: 500px;
+            padding: 8px 0;
+        }
+        .dpad {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
+            gap: 4px;
+        }
+        .dpad-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface2);
+            border: 2px solid var(--primary);
+            border-radius: 12px;
+            color: var(--primary-light);
+            font-size: 28px;
+            cursor: pointer;
+            transition: all 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dpad-btn:active, .dpad-btn.active {
+            background: var(--primary);
+            color: white;
+            transform: scale(0.92);
+        }
+        .dpad-center {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 12px;
+            cursor: default;
+        }
+        .dpad-empty { visibility: hidden; }
+
+        .bottom-bar {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 8px;
+            padding-bottom: env(safe-area-inset-bottom, 8px);
+        }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-reset {
+            background: var(--surface2);
+            color: var(--text-dim);
+            border: 1px solid #333;
+        }
+        .btn-levels {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-undo {
+            background: var(--surface2);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+
+        /* ========== MODAL ========== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 28px 24px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        .modal h2 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .modal p {
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .modal .stars {
+            font-size: 40px;
+            margin: 12px 0;
+        }
+        .modal .stats {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .modal .stat {
+            text-align: center;
+        }
+        .modal .stat-val {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .modal .stat-label {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+        .modal-btn {
+            display: inline-block;
+            padding: 12px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 4px;
+        }
+        .modal-btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .modal-btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        /* ========== LEVEL SELECT ========== */
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin: 16px 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            padding: 4px;
+        }
+        .level-cell {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface2);
+            border-radius: 10px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.15s;
+        }
+        .level-cell.current { border-color: var(--primary); }
+        .level-cell.locked { opacity: 0.3; pointer-events: none; }
+        .level-cell .lnum { font-size: 18px; font-weight: 700; }
+        .level-cell .lstars { font-size: 10px; margin-top: 2px; }
+        .level-cell:active { transform: scale(0.9); }
+
+        /* ========== GAME OVER ========== */
+        .fail-text { color: var(--danger); }
+
+        /* ========== SWIPE HINT ========== */
+        .swipe-trail {
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <div class="header-left">
+                <span class="header-title">MAZE ESCAPE</span>
+                <span class="level-badge" id="levelBadge">Lv.1</span>
+            </div>
+            <div style="font-size:13px; color:var(--text-dim)">
+                <span id="gridSizeLabel">5x5</span>
+            </div>
+        </div>
+
+        <div class="info-bar">
+            <div class="info-card">
+                <div class="info-label">Moves</div>
+                <div class="info-value moves" id="moveCount">0</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Best</div>
+                <div class="info-value optimal" id="optimalCount">?</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Left</div>
+                <div class="info-value remaining" id="remainCount">15</div>
+            </div>
+        </div>
+
+        <div class="maze-container">
+            <canvas id="mazeCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="dpad">
+                <div class="dpad-empty"></div>
+                <button class="dpad-btn" data-dir="up" id="btnUp">&#9650;</button>
+                <div class="dpad-empty"></div>
+                <button class="dpad-btn" data-dir="left" id="btnLeft">&#9664;</button>
+                <div class="dpad-btn dpad-center">MOVE</div>
+                <button class="dpad-btn" data-dir="right" id="btnRight">&#9654;</button>
+                <div class="dpad-empty"></div>
+                <button class="dpad-btn" data-dir="down" id="btnDown">&#9660;</button>
+                <div class="dpad-empty"></div>
+            </div>
+        </div>
+
+        <div class="bottom-bar">
+            <button class="btn btn-reset" id="btnReset">Reset</button>
+            <button class="btn btn-undo" id="btnUndo">Undo</button>
+            <button class="btn btn-levels" id="btnLevels">Levels</button>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div class="modal-overlay" id="winModal">
+        <div class="modal">
+            <h2 id="winTitle">Clear!</h2>
+            <div class="stars" id="winStars"></div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-val" id="winMoves">0</div>
+                    <div class="stat-label">Your Moves</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-val" id="winOptimal">0</div>
+                    <div class="stat-label">Optimal</div>
+                </div>
+            </div>
+            <p id="winMsg"></p>
+            <button class="modal-btn modal-btn-primary" id="winNext">Next Level</button>
+            <button class="modal-btn modal-btn-secondary" id="winRetry">Retry</button>
+        </div>
+    </div>
+
+    <!-- Fail Modal -->
+    <div class="modal-overlay" id="failModal">
+        <div class="modal">
+            <h2 class="fail-text">Out of Moves!</h2>
+            <p>Moves used up. Try again!</p>
+            <button class="modal-btn modal-btn-primary" id="failRetry">Retry</button>
+            <button class="modal-btn modal-btn-secondary" id="failLevels">Levels</button>
+        </div>
+    </div>
+
+    <!-- Level Select Modal -->
+    <div class="modal-overlay" id="levelModal">
+        <div class="modal">
+            <h2>Select Level</h2>
+            <div class="level-grid" id="levelGrid"></div>
+            <button class="modal-btn modal-btn-secondary" id="levelClose">Close</button>
+        </div>
+    </div>
+
+<script>
+// ============================================================
+//  LUNA MAZE ESCAPE — Ice Sliding Puzzle
+// ============================================================
+
+const CELL_WALL = 1;
+const CELL_EMPTY = 0;
+const CELL_EXIT = 2;
+
+// Direction vectors
+const DIR = {
+    up:    { dx: 0, dy: -1 },
+    down:  { dx: 0, dy:  1 },
+    left:  { dx: -1, dy: 0 },
+    right: { dx:  1, dy: 0 }
+};
+
+// ============================================================
+//  LEVEL DEFINITIONS (20 levels, hand-tuned)
+// ============================================================
+const LEVELS = [];
+
+// Level generation: We use seeded procedural generation
+// Each level defines: gridSize, start, exit, walls, optimalMoves, allowedMoves
+function seedRandom(seed) {
+    let s = seed;
+    return function() {
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        return s / 0x7fffffff;
+    };
+}
+
+function generateMaze(level) {
+    // Pre-designed levels for quality control
+    const designs = [
+        // Level 1: 5x5, optimal 3
+        {
+            size: 5, start: [0, 2], exit: [4, 2], optimal: 3, allowed: 10,
+            walls: [[2,0],[2,1],[2,3],[2,4],[1,2]]
+        },
+        // Level 2: 5x5, optimal 3
+        {
+            size: 5, start: [0, 4], exit: [4, 0], optimal: 3, allowed: 10,
+            walls: [[1,1],[3,1],[1,3],[3,3],[2,2]]
+        },
+        // Level 3: 5x5, optimal 4
+        {
+            size: 5, start: [0, 0], exit: [4, 4], optimal: 4, allowed: 12,
+            walls: [[2,0],[2,1],[0,2],[1,2],[3,3],[4,3],[3,4]]
+        },
+        // Level 4: 6x6, optimal 4
+        {
+            size: 6, start: [0, 0], exit: [5, 5], optimal: 4, allowed: 12,
+            walls: [[2,0],[2,1],[0,3],[1,3],[4,2],[4,3],[3,5],[2,4]]
+        },
+        // Level 5: 6x6, optimal 5
+        {
+            size: 6, start: [0, 5], exit: [5, 0], optimal: 5, allowed: 15,
+            walls: [[1,1],[1,4],[2,2],[3,3],[4,1],[4,4],[0,3],[5,2],[3,0],[2,5]]
+        },
+        // Level 6: 7x7, optimal 5
+        {
+            size: 7, start: [0, 3], exit: [6, 3], optimal: 5, allowed: 15,
+            walls: [[2,1],[2,5],[4,2],[4,4],[3,3],[1,0],[5,6],[1,3],[5,3],[3,1],[3,5]]
+        },
+        // Level 7: 7x7, optimal 6
+        {
+            size: 7, start: [0, 0], exit: [6, 6], optimal: 6, allowed: 18,
+            walls: [[2,0],[0,2],[3,2],[2,3],[4,4],[6,4],[4,6],[5,1],[1,5],[3,5],[5,3]]
+        },
+        // Level 8: 7x7, optimal 7
+        {
+            size: 7, start: [3, 0], exit: [3, 6], optimal: 7, allowed: 20,
+            walls: [[1,1],[5,1],[1,5],[5,5],[3,2],[3,4],[2,3],[4,3],[0,3],[6,3],[1,3],[5,3]]
+        },
+        // Level 9: 8x8, optimal 7
+        {
+            size: 8, start: [0, 0], exit: [7, 7], optimal: 7, allowed: 20,
+            walls: [[2,0],[0,2],[3,3],[4,2],[2,4],[5,5],[7,5],[5,7],[6,1],[1,6],[4,4],[3,6],[6,3]]
+        },
+        // Level 10: 8x8, optimal 8
+        {
+            size: 8, start: [0, 7], exit: [7, 0], optimal: 8, allowed: 24,
+            walls: [[1,1],[2,3],[3,1],[1,5],[4,4],[5,2],[6,5],[5,6],[3,6],[6,1],[2,6],[0,3],[7,4],[4,7],[3,3]]
+        },
+        // Level 11: 9x9, optimal 9
+        {
+            size: 9, start: [0, 4], exit: [8, 4], optimal: 9, allowed: 25,
+            walls: [[2,1],[2,7],[6,1],[6,7],[4,3],[4,5],[1,4],[7,4],[3,2],[5,6],[3,6],[5,2],[4,0],[4,8],[0,2],[8,6]]
+        },
+        // Level 12: 9x9, optimal 10
+        {
+            size: 9, start: [0, 0], exit: [8, 8], optimal: 10, allowed: 28,
+            walls: [[2,0],[0,2],[3,3],[5,2],[2,5],[6,4],[4,6],[7,7],[1,4],[4,1],[7,3],[3,7],[5,5],[8,5],[5,8],[6,1],[1,7]]
+        },
+        // Level 13: 10x10, optimal 11
+        {
+            size: 10, start: [0, 9], exit: [9, 0], optimal: 11, allowed: 30,
+            walls: [[2,1],[1,3],[3,2],[4,5],[5,3],[6,7],[7,5],[8,2],[3,8],[5,6],[7,1],[2,6],[8,8],[1,7],[6,3],[4,0],[9,5],[0,4],[5,9]]
+        },
+        // Level 14: 10x10, optimal 12
+        {
+            size: 10, start: [0, 0], exit: [9, 9], optimal: 12, allowed: 32,
+            walls: [[2,0],[0,3],[3,2],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[2,8],[8,2],[6,6],[4,8],[8,4],[1,7],[7,1],[9,5],[5,9]]
+        },
+        // Level 15: 11x11, optimal 13
+        {
+            size: 11, start: [5, 0], exit: [5, 10], optimal: 13, allowed: 35,
+            walls: [[2,1],[8,1],[2,9],[8,9],[4,3],[6,3],[4,7],[6,7],[5,5],[3,5],[7,5],[1,3],[9,7],[5,2],[5,8],[0,5],[10,5],[3,1],[7,9],[2,4],[8,6]]
+        },
+        // Level 16: 11x11, optimal 14
+        {
+            size: 11, start: [0, 0], exit: [10, 10], optimal: 14, allowed: 38,
+            walls: [[2,0],[0,2],[3,3],[5,2],[2,5],[6,4],[4,6],[8,3],[3,8],[7,7],[9,9],[1,4],[4,1],[7,2],[2,7],[9,5],[5,9],[6,6],[10,7],[7,10],[8,1],[1,8]]
+        },
+        // Level 17: 12x12, optimal 15
+        {
+            size: 12, start: [0, 11], exit: [11, 0], optimal: 15, allowed: 40,
+            walls: [[2,1],[1,3],[4,2],[3,5],[6,3],[5,6],[8,4],[4,8],[7,7],[9,2],[2,9],[10,5],[5,10],[3,7],[7,3],[8,9],[9,8],[1,6],[6,1],[10,10],[11,5],[0,6],[6,11]]
+        },
+        // Level 18: 12x12, optimal 17
+        {
+            size: 12, start: [0, 0], exit: [11, 11], optimal: 17, allowed: 42,
+            walls: [[2,0],[0,2],[3,3],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[9,2],[2,9],[10,4],[4,10],[6,6],[11,7],[7,11],[8,1],[1,8],[9,9],[10,6],[6,10],[3,10],[10,3]]
+        },
+        // Level 19: 13x13, optimal 18
+        {
+            size: 13, start: [6, 0], exit: [6, 12], optimal: 18, allowed: 44,
+            walls: [[3,1],[9,1],[3,11],[9,11],[5,3],[7,3],[5,9],[7,9],[6,6],[4,5],[8,5],[4,7],[8,7],[2,3],[10,9],[6,2],[6,10],[0,6],[12,6],[2,6],[10,6],[1,4],[11,8],[5,5],[7,7],[3,8],[9,4]]
+        },
+        // Level 20: 13x13, optimal 20
+        {
+            size: 13, start: [0, 0], exit: [12, 12], optimal: 20, allowed: 48,
+            walls: [[2,0],[0,2],[3,3],[5,1],[1,5],[4,4],[6,3],[3,6],[7,5],[5,7],[8,8],[9,2],[2,9],[10,4],[4,10],[6,6],[11,7],[7,11],[8,1],[1,8],[9,9],[10,6],[6,10],[12,9],[9,12],[11,11],[3,10],[10,3],[0,7],[7,0]]
+        }
+    ];
+
+    return designs[level];
+}
+
+// Verify optimal solution with BFS
+function bfsSolve(grid, size, start, exit) {
+    const key = (x, y) => `${x},${y}`;
+    const queue = [{ x: start[0], y: start[1], moves: 0 }];
+    const visited = new Set();
+    visited.add(key(start[0], start[1]));
+
+    while (queue.length > 0) {
+        const { x, y, moves } = queue.shift();
+
+        for (const dir of Object.values(DIR)) {
+            let nx = x, ny = y;
+            // Slide until hitting wall or boundary
+            while (true) {
+                const tx = nx + dir.dx;
+                const ty = ny + dir.dy;
+                if (tx < 0 || tx >= size || ty < 0 || ty >= size) break;
+                if (grid[ty][tx] === CELL_WALL) break;
+                nx = tx;
+                ny = ty;
+                // Check if we reached exit during slide
+                if (nx === exit[0] && ny === exit[1]) {
+                    return moves + 1;
+                }
+            }
+
+            if (nx === x && ny === y) continue; // didn't move
+            if (visited.has(key(nx, ny))) continue;
+            visited.add(key(nx, ny));
+            queue.push({ x: nx, y: ny, moves: moves + 1 });
+        }
+    }
+    return -1; // no solution
+}
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let currentLevel = 0;
+let grid = [];
+let gridSize = 5;
+let playerX = 0, playerY = 0;
+let startX = 0, startY = 0;
+let exitX = 0, exitY = 0;
+let moveCount = 0;
+let optimalMoves = 0;
+let allowedMoves = 15;
+let moveHistory = [];
+let isAnimating = false;
+let levelStars = {}; // level -> stars (1-3)
+let unlockedLevel = 0;
+
+// Load progress
+try {
+    const saved = JSON.parse(localStorage.getItem('luna-maze-progress') || '{}');
+    levelStars = saved.stars || {};
+    unlockedLevel = saved.unlocked || 0;
+} catch(e) {}
+
+function saveProgress() {
+    localStorage.setItem('luna-maze-progress', JSON.stringify({
+        stars: levelStars,
+        unlocked: unlockedLevel
+    }));
+}
+
+// ============================================================
+//  CANVAS
+// ============================================================
+const canvas = document.getElementById('mazeCanvas');
+const ctx = canvas.getContext('2d');
+let cellSize = 40;
+
+function resizeCanvas() {
+    const container = document.querySelector('.maze-container');
+    const maxW = Math.min(container.clientWidth - 16, 500);
+    const maxH = container.clientHeight - 16;
+    const maxCell = Math.floor(Math.min(maxW, maxH) / gridSize);
+    cellSize = Math.max(20, Math.min(maxCell, 50));
+    canvas.width = cellSize * gridSize;
+    canvas.height = cellSize * gridSize;
+    drawMaze();
+}
+
+// ============================================================
+//  RENDERING
+// ============================================================
+let animPlayerX = 0, animPlayerY = 0;
+
+function drawMaze() {
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = '#16162A';
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const px = x * cellSize;
+            const py = y * cellSize;
+
+            if (grid[y][x] === CELL_WALL) {
+                // Wall
+                ctx.fillStyle = '#2D2D50';
+                ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+                // Wall pattern
+                ctx.strokeStyle = '#3A3A60';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(px + 3, py + 3, cellSize - 6, cellSize - 6);
+            } else {
+                // Floor
+                ctx.fillStyle = (x + y) % 2 === 0 ? '#1E1E36' : '#1A1A30';
+                ctx.fillRect(px, py, cellSize, cellSize);
+            }
+
+            // Exit
+            if (x === exitX && y === exitY) {
+                ctx.fillStyle = 'rgba(0, 206, 201, 0.2)';
+                ctx.fillRect(px, py, cellSize, cellSize);
+                // Glowing exit
+                const t = Date.now() / 500;
+                const glow = 0.4 + 0.3 * Math.sin(t);
+                ctx.fillStyle = `rgba(0, 206, 201, ${glow})`;
+                ctx.beginPath();
+                ctx.arc(px + cellSize/2, py + cellSize/2, cellSize/3, 0, Math.PI*2);
+                ctx.fill();
+                // Arrow
+                ctx.fillStyle = '#00CEC9';
+                ctx.font = `${cellSize * 0.5}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('EXIT', px + cellSize/2, py + cellSize/2);
+                ctx.font = `${cellSize * 0.3}px sans-serif`;
+            }
+
+            // Start marker
+            if (x === startX && y === startY && !(playerX === startX && playerY === startY && moveCount === 0)) {
+                ctx.fillStyle = 'rgba(108, 92, 231, 0.15)';
+                ctx.fillRect(px, py, cellSize, cellSize);
+                ctx.strokeStyle = 'rgba(108, 92, 231, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(px + 2, py + 2, cellSize - 4, cellSize - 4);
+            }
+        }
+    }
+
+    // Grid lines (subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= gridSize; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * cellSize, 0);
+        ctx.lineTo(i * cellSize, h);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i * cellSize);
+        ctx.lineTo(w, i * cellSize);
+        ctx.stroke();
+    }
+
+    // Player
+    const ppx = animPlayerX * cellSize + cellSize/2;
+    const ppy = animPlayerY * cellSize + cellSize/2;
+    const pr = cellSize * 0.35;
+
+    // Player glow
+    const grad = ctx.createRadialGradient(ppx, ppy, 0, ppx, ppy, pr * 2);
+    grad.addColorStop(0, 'rgba(108, 92, 231, 0.4)');
+    grad.addColorStop(1, 'rgba(108, 92, 231, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ppx, ppy, pr * 2, 0, Math.PI*2);
+    ctx.fill();
+
+    // Player body
+    ctx.fillStyle = '#6C5CE7';
+    ctx.beginPath();
+    ctx.arc(ppx, ppy, pr, 0, Math.PI*2);
+    ctx.fill();
+
+    // Player highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(ppx - pr*0.2, ppy - pr*0.2, pr*0.4, 0, Math.PI*2);
+    ctx.fill();
+
+    // Move trail (last position ghost)
+    if (moveHistory.length > 0) {
+        const last = moveHistory[moveHistory.length - 1];
+        ctx.fillStyle = 'rgba(108, 92, 231, 0.15)';
+        ctx.beginPath();
+        ctx.arc(last.x * cellSize + cellSize/2, last.y * cellSize + cellSize/2, pr * 0.6, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+function animateLoop() {
+    drawMaze();
+    requestAnimationFrame(animateLoop);
+}
+
+// ============================================================
+//  LEVEL LOADING
+// ============================================================
+function loadLevel(levelIndex) {
+    currentLevel = levelIndex;
+    const design = generateMaze(levelIndex);
+    gridSize = design.size;
+    optimalMoves = design.optimal;
+    allowedMoves = design.allowed;
+
+    // Build grid
+    grid = [];
+    for (let y = 0; y < gridSize; y++) {
+        grid[y] = [];
+        for (let x = 0; x < gridSize; x++) {
+            grid[y][x] = CELL_EMPTY;
+        }
+    }
+
+    // Place walls
+    for (const [wx, wy] of design.walls) {
+        if (wy >= 0 && wy < gridSize && wx >= 0 && wx < gridSize) {
+            grid[wy][wx] = CELL_WALL;
+        }
+    }
+
+    // Start & exit
+    startX = design.start[0];
+    startY = design.start[1];
+    exitX = design.exit[0];
+    exitY = design.exit[1];
+    grid[exitY][exitX] = CELL_EXIT;
+
+    // Player
+    playerX = startX;
+    playerY = startY;
+    animPlayerX = startX;
+    animPlayerY = startY;
+    moveCount = 0;
+    moveHistory = [];
+    isAnimating = false;
+
+    // Verify solution exists
+    const bfsResult = bfsSolve(grid, gridSize, design.start, design.exit);
+    if (bfsResult > 0 && bfsResult < optimalMoves) {
+        optimalMoves = bfsResult; // Use actual BFS result if shorter
+    }
+
+    // UI
+    document.getElementById('levelBadge').textContent = `Lv.${levelIndex + 1}`;
+    document.getElementById('gridSizeLabel').textContent = `${gridSize}x${gridSize}`;
+    updateUI();
+    resizeCanvas();
+}
+
+function updateUI() {
+    document.getElementById('moveCount').textContent = moveCount;
+    document.getElementById('optimalCount').textContent = optimalMoves;
+    const remaining = allowedMoves - moveCount;
+    const remainEl = document.getElementById('remainCount');
+    remainEl.textContent = remaining;
+    remainEl.className = 'info-value ' + (remaining <= 3 ? 'danger' : 'remaining');
+}
+
+// ============================================================
+//  MOVEMENT
+// ============================================================
+function slide(dirKey) {
+    if (isAnimating) return;
+    const dir = DIR[dirKey];
+    if (!dir) return;
+
+    let nx = playerX, ny = playerY;
+    let moved = false;
+    let reachedExit = false;
+
+    while (true) {
+        const tx = nx + dir.dx;
+        const ty = ny + dir.dy;
+        if (tx < 0 || tx >= gridSize || ty < 0 || ty >= gridSize) break;
+        if (grid[ty][tx] === CELL_WALL) break;
+        nx = tx;
+        ny = ty;
+        moved = true;
+        if (nx === exitX && ny === exitY) {
+            reachedExit = true;
+            break;
+        }
+    }
+
+    if (!moved) return;
+
+    // Save history
+    moveHistory.push({ x: playerX, y: playerY });
+    moveCount++;
+
+    // Animate
+    isAnimating = true;
+    const fromX = playerX, fromY = playerY;
+    playerX = nx;
+    playerY = ny;
+
+    const duration = 150 + Math.max(Math.abs(nx - fromX), Math.abs(ny - fromY)) * 30;
+    const startTime = performance.now();
+
+    function animate(now) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        animPlayerX = fromX + (nx - fromX) * ease;
+        animPlayerY = fromY + (ny - fromY) * ease;
+
+        if (t < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            animPlayerX = nx;
+            animPlayerY = ny;
+            isAnimating = false;
+            updateUI();
+
+            if (reachedExit) {
+                onWin();
+            } else if (moveCount >= allowedMoves) {
+                onFail();
+            }
+        }
+    }
+    requestAnimationFrame(animate);
+    updateUI();
+
+    // Button feedback
+    const btnId = { up: 'btnUp', down: 'btnDown', left: 'btnLeft', right: 'btnRight' };
+    const btn = document.getElementById(btnId[dirKey]);
+    if (btn) {
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 120);
+    }
+}
+
+function undo() {
+    if (isAnimating || moveHistory.length === 0) return;
+    const prev = moveHistory.pop();
+    playerX = prev.x;
+    playerY = prev.y;
+    animPlayerX = prev.x;
+    animPlayerY = prev.y;
+    moveCount--;
+    updateUI();
+    drawMaze();
+}
+
+// ============================================================
+//  WIN / FAIL
+// ============================================================
+function onWin() {
+    let stars = 1;
+    if (moveCount <= optimalMoves) stars = 3;
+    else if (moveCount <= optimalMoves * 1.5) stars = 2;
+
+    // Save
+    const prevStars = levelStars[currentLevel] || 0;
+    if (stars > prevStars) levelStars[currentLevel] = stars;
+    if (currentLevel >= unlockedLevel) unlockedLevel = currentLevel + 1;
+    saveProgress();
+
+    // Show modal
+    document.getElementById('winStars').textContent =
+        (stars >= 1 ? '\u2B50' : '\u2606') +
+        (stars >= 2 ? '\u2B50' : '\u2606') +
+        (stars >= 3 ? '\u2B50' : '\u2606');
+    document.getElementById('winMoves').textContent = moveCount;
+    document.getElementById('winOptimal').textContent = optimalMoves;
+
+    if (stars === 3) {
+        document.getElementById('winTitle').textContent = 'Perfect!';
+        document.getElementById('winMsg').textContent = 'You found the optimal path!';
+    } else if (stars === 2) {
+        document.getElementById('winTitle').textContent = 'Great!';
+        document.getElementById('winMsg').textContent = 'Close to optimal! Can you do better?';
+    } else {
+        document.getElementById('winTitle').textContent = 'Clear!';
+        document.getElementById('winMsg').textContent = `Optimal is ${optimalMoves} moves. Try again?`;
+    }
+
+    document.getElementById('winNext').style.display = currentLevel < 19 ? '' : 'none';
+    document.getElementById('winModal').classList.add('show');
+}
+
+function onFail() {
+    document.getElementById('failModal').classList.add('show');
+}
+
+// ============================================================
+//  LEVEL SELECT
+// ============================================================
+function showLevelSelect() {
+    const grid = document.getElementById('levelGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 20; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'level-cell';
+        if (i === currentLevel) cell.classList.add('current');
+        if (i > unlockedLevel) cell.classList.add('locked');
+
+        const num = document.createElement('div');
+        num.className = 'lnum';
+        num.textContent = i > unlockedLevel ? '\uD83D\uDD12' : (i + 1);
+        cell.appendChild(num);
+
+        if (levelStars[i]) {
+            const s = document.createElement('div');
+            s.className = 'lstars';
+            s.textContent = '\u2B50'.repeat(levelStars[i]) + '\u2606'.repeat(3 - levelStars[i]);
+            cell.appendChild(s);
+        }
+
+        if (i <= unlockedLevel) {
+            cell.addEventListener('click', () => {
+                document.getElementById('levelModal').classList.remove('show');
+                loadLevel(i);
+            });
+        }
+        grid.appendChild(cell);
+    }
+    document.getElementById('levelModal').classList.add('show');
+}
+
+// ============================================================
+//  EVENT HANDLERS
+// ============================================================
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+    const map = {
+        ArrowUp: 'up', ArrowDown: 'down',
+        ArrowLeft: 'left', ArrowRight: 'right',
+        w: 'up', s: 'down', a: 'left', d: 'right',
+        W: 'up', S: 'down', A: 'left', D: 'right'
+    };
+    if (map[e.key]) {
+        e.preventDefault();
+        slide(map[e.key]);
+    }
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        undo();
+    }
+});
+
+// D-Pad buttons
+document.querySelectorAll('.dpad-btn[data-dir]').forEach(btn => {
+    const dir = btn.dataset.dir;
+    btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        slide(dir);
+    });
+});
+
+// Touch swipe on canvas
+let touchStartX = 0, touchStartY = 0;
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (e.changedTouches.length === 0) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const threshold = 20;
+    if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+        slide(dx > 0 ? 'right' : 'left');
+    } else {
+        slide(dy > 0 ? 'down' : 'up');
+    }
+}, { passive: false });
+
+// Buttons
+document.getElementById('btnReset').addEventListener('click', () => loadLevel(currentLevel));
+document.getElementById('btnUndo').addEventListener('click', undo);
+document.getElementById('btnLevels').addEventListener('click', showLevelSelect);
+
+// Modal buttons
+document.getElementById('winNext').addEventListener('click', () => {
+    document.getElementById('winModal').classList.remove('show');
+    if (currentLevel < 19) loadLevel(currentLevel + 1);
+});
+document.getElementById('winRetry').addEventListener('click', () => {
+    document.getElementById('winModal').classList.remove('show');
+    loadLevel(currentLevel);
+});
+document.getElementById('failRetry').addEventListener('click', () => {
+    document.getElementById('failModal').classList.remove('show');
+    loadLevel(currentLevel);
+});
+document.getElementById('failLevels').addEventListener('click', () => {
+    document.getElementById('failModal').classList.remove('show');
+    showLevelSelect();
+});
+document.getElementById('levelClose').addEventListener('click', () => {
+    document.getElementById('levelModal').classList.remove('show');
+});
+
+// Close modals on overlay click
+['winModal', 'failModal', 'levelModal'].forEach(id => {
+    document.getElementById(id).addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            e.currentTarget.classList.remove('show');
+        }
+    });
+});
+
+// Resize
+window.addEventListener('resize', resizeCanvas);
+
+// ============================================================
+//  INIT
+// ============================================================
+loadLevel(unlockedLevel < 20 ? unlockedLevel : 0);
+animateLoop();
+
+</script>
+</body>
+</html>
