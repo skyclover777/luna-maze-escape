@@ -1156,6 +1156,12 @@ function onWin() {
     saveProgress();
     updateCoinUI();
 
+    // 루나 홈페이지 코인 +1 적립
+    try {
+        const lunaCoins = parseInt(localStorage.getItem('luna_coins') || '0') + 1;
+        localStorage.setItem('luna_coins', lunaCoins);
+    } catch(e) {}
+
     // Show modal
     document.getElementById('winStars').textContent =
         (stars >= 1 ? '\u2B50' : '\u2606') +
